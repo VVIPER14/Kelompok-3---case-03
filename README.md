@@ -18,11 +18,31 @@
 4. [KPI Utama](#4-kpi-utama)
 5. [Batasan Sistem](#5-batasan-sistem)
 6. [Data Source dan Unit Analisis](#6-data-source-dan-unit-analisis)
-7. [Data Dictionary ](#7-data-dictionary)
+7. [Data Dictionary](#7-data-dictionary)
 8. [Cara Menjalankan Environment dan Analisis](#8-cara-menjalankan-environment-dan-analisis)
 9. [Ringkasan Insight](#9-ringkasan-insight)
 10. [Rekomendasi Operasional dan Estimasi Dampak](#10-rekomendasi-operasional-dan-estimasi-dampak)
-11. [Risiko Implementasi dan Monitoring](#11-risiko-implementasi-dan-monitoring)
+11. [Risiko, Monitoring, dan Next Steps](#11-risiko-monitoring-dan-next-steps)
+
+---
+
+## Ringkasan Manajerial
+
+Downtime mesin yang tidak terprediksi menyebabkan terhentinya proses produksi secara mendadak, biaya perbaikan darurat yang jauh lebih mahal dibanding perawatan terencana, serta gangguan pada jadwal pengiriman. Kondisi saat ini adalah seluruh penanganan dilakukan secara reaktif — rata-rata response time lebih dari 2 jam setelah downtime sudah terjadi.
+
+Analisis ini membangun sistem prediksi berbasis data sensor mesin menggunakan **Logistic Regression dengan threshold 0.30** untuk mendeteksi risiko downtime minimal 24 jam sebelum kejadian. Model dilatih dengan temporal split 80:20 dan SMOTE untuk menangani class imbalance.
+
+**Hasil utama dari 22 kejadian downtime di periode test:**
+
+| Metrik | Hasil | Status |
+|---|---|---|
+| Recall Downtime | **95.5%** (21 dari 22 downtime terdeteksi) | ✅ Melampaui target ≥ 80% |
+| False Alarm Rate | **42.8%** (196 alarm palsu dari 458 kondisi normal) | ⚠️ Melampaui target ≤ 30% — trade-off disengaja |
+| Downtime Avoidance | Belum dapat diukur | — Memerlukan data operasional aktual |
+
+FAR 42.8% melampaui target karena threshold sengaja diturunkan ke 0.30 untuk memaksimalkan Recall — dalam konteks ini, biaya satu downtime mendadak yang luput jauh lebih besar dibanding biaya mengirim teknisi untuk memeriksa mesin yang ternyata normal. FAR harus dikelola aktif melalui prioritisasi skor probabilitas dan edukasi teknisi.
+
+**Sinyal risiko terkuat:** `last_maintenance_days` (|koef| LR = 0.866), `alarm_count` (r = 0.182), dan `vibration_mm_s` (|koef| LR = 0.451). Mesin MX-05 di L1 (downtime rate 5.0%) adalah mesin paling kritis; Lini L2 adalah lini paling stabil.
 
 ---
 
@@ -58,6 +78,14 @@ Kedua, memprioritaskan urutan penanganan ketika ada lebih dari satu mesin yang t
 
 ## 4. KPI Utama
 
+### Ringkasan Hasil KPI
+
+| KPI | Definisi | Baseline | Target | Hasil Model |
+|---|---|---|---|---|
+| Recall Downtime | TP / (TP + FN) — dari semua mesin yang benar-benar akan downtime, berapa persen berhasil dideteksi | 0% (tidak ada sistem prediksi) | ≥ 80% | **95.5%** ✅ |
+| False Alarm Rate | FP / (FP + TN) — dari semua mesin normal, berapa persen salah diprediksi downtime | 0% (tidak ada alarm) | ≤ 30% | **42.8%** ⚠️ |
+| Downtime Avoidance | Proporsi downtime yang berhasil dicegah melalui tindakan preventif berbasis prediksi | 0 kejadian | ≥ 50% | **Belum dapat diukur — memerlukan data operasional aktual** |
+
 ### a. Downtime Recall
 
 KPI ini mengukur kemampuan model dalam mendeteksi mesin yang benar-benar akan mengalami downtime dalam 24 jam ke depan. Recall adalah metrik paling kritis dalam kasus ini karena konsekuensi melewatkan satu downtime (False Negative) jauh lebih mahal dibanding mengirim teknisi untuk memeriksa mesin yang ternyata normal (False Positive).
@@ -66,8 +94,9 @@ KPI ini mengukur kemampuan model dalam mendeteksi mesin yang benar-benar akan me
 - **Numerator:** True Positive (TP) — jumlah mesin yang benar-benar akan downtime dan berhasil diprediksi oleh model.
 - **Denominator:** TP + FN — seluruh mesin yang sebenarnya akan mengalami downtime di periode test.
 - **Satuan:** Persentase (%)
-- **Baseline:** 82.35% 
-- **Target:** Recall ≥ 82.35%
+- **Baseline:** 0% (tidak ada sistem prediksi)
+- **Target:** Recall ≥ 80%
+- **Hasil:** **95.5%** — 21 dari 22 downtime di periode test berhasil dideteksi lebih dari 24 jam sebelumnya.
 
 ### b. False Alarm Rate (FAR)
 
@@ -77,8 +106,9 @@ KPI ini mengukur seberapa sering model memberikan alarm downtime padahal mesin s
 - **Numerator:** False Positive (FP) — jumlah mesin yang diprediksi downtime padahal kenyataannya tidak.
 - **Denominator:** FP + TN — seluruh mesin yang sebenarnya tidak mengalami downtime.
 - **Satuan:** Persentase (%)
-- **Baseline:** 0% 
+- **Baseline:** 0% (tidak ada alarm)
 - **Target:** FAR ≤ 30%
+- **Hasil:** **42.8%** — 196 alarm palsu dari 458 kondisi normal di test set. FAR melampaui target karena threshold sengaja diturunkan ke 0.30 untuk memaksimalkan Recall. Trade-off ini disengaja: biaya satu downtime mendadak yang tidak terdeteksi jauh lebih besar dibanding biaya alarm palsu.
 
 ### c. Downtime Avoidance
 
@@ -90,6 +120,7 @@ KPI ini mengukur proporsi downtime yang berhasil dicegah melalui tindakan mainte
 - **Satuan:** Persentase (%)
 - **Baseline:** 0% (belum ada mekanisme pencegahan prediktif)
 - **Target:** ≥ 50% downtime potensial berhasil dihindari
+- **Hasil:** Belum dapat diukur — memerlukan data operasional aktual pasca implementasi.
 
 ---
 
@@ -245,24 +276,12 @@ Model terpilih adalah Logistic Regression dengan threshold 0.30, dilatih menggun
 
 ---
 
-## 11. Risiko Implementasi dan Monitoring
+## 11. Risiko, Monitoring, dan Next Steps
 
-**Model Drift**
-
-Performa model akan menurun seiring waktu karena kondisi mesin berubah akibat penuaan komponen, penggantian suku cadang, atau perubahan pola produksi. Recall yang semula 95.5% dapat turun secara bertahap tanpa disadari. Model harus di-retrain minimal setiap 3 bulan menggunakan data terbaru, dan metrik Recall serta FAR harus dipantau setiap bulan dengan membandingkan prediksi model terhadap kejadian downtime aktual yang tercatat.
-
-**False Alarm Fatigue**
-
-FAR sebesar 42.8% di data test berarti teknisi akan menerima cukup banyak alarm palsu dalam operasional sehari-hari. Jika tidak dikelola, teknisi akan mulai mengabaikan notifikasi dan sistem kehilangan nilainya. Mitigasi yang disarankan: tampilkan skor probabilitas bersama setiap alarm agar teknisi dapat memprioritaskan sendiri, kombinasikan dengan konfirmasi `alarm_count` sebagai filter kedua, dan pantau tingkat respons teknisi terhadap alarm secara berkala. Jika FAR aktual di lapangan konsisten melebihi 50%, pertimbangkan menaikkan threshold ke 0.35 dan evaluasi ulang dampaknya terhadap Recall.
-
-**Ketergantungan pada Kualitas Sensor**
-
-Model sepenuhnya bergantung pada data sensor yang akurat dan terkalibrasi. Sensor yang rusak atau mengirim nilai tidak wajar — seperti pola yang ditemukan pada `vibration_mm_s` (nilai 999 mm/s) selama profiling — akan menghasilkan prediksi yang tidak dapat dipercaya. Perlu ada mekanisme validasi data masuk secara otomatis sebelum diumpankan ke model, serta prosedur yang jelas tentang apa yang harus dilakukan teknisi jika satu atau lebih sensor tidak aktif atau mengirim nilai anomali.
-
-**Kepemilikan Data dan Keamanan**
-
-Data sensor mesin bersifat sensitif karena dapat mengungkapkan kapasitas produksi, pola downtime, dan kondisi aset perusahaan. Akses ke sistem prediksi harus dibatasi berdasarkan peran (teknisi hanya melihat notifikasi per mesin, manajer melihat dashboard agregat), dan data historis harus memiliki kebijakan retensi yang jelas — berapa lama disimpan, siapa yang berwenang mengaksesnya, dan bagaimana prosedur penghapusannya.
-
-**Bias pada Data Historis**
-
-Model dilatih pada data historis yang mencerminkan kondisi dan praktik maintenance masa lalu. Jika ada mesin tertentu yang mendapat perhatian maintenance lebih banyak di masa lalu, model mungkin memiliki performa yang tidak merata antar mesin. Evaluasi Recall dan FAR sebaiknya dilakukan juga per mesin dan per lini — bukan hanya secara agregat — untuk memastikan tidak ada mesin yang secara konsisten luput dari deteksi.
+| Aspek | Risiko | Monitoring | Next Step / Mitigasi |
+|---|---|---|---|
+| **Model Drift** | Performa model dapat menurun seiring perubahan kondisi mesin, penuaan komponen, atau perubahan pola produksi — Recall 95.5% dapat turun tanpa disadari. | Pantau Recall dan FAR aktual setiap bulan dengan membandingkan prediksi terhadap downtime nyata. | Re-training model minimal setiap 3 bulan menggunakan data terbaru; dokumentasikan perubahan metrik tiap versi. |
+| **False Alarm Fatigue** | FAR 42.8% berarti ~1–2 alarm palsu per hari kerja. Teknisi bisa mulai mengabaikan notifikasi dan sistem kehilangan nilainya. | Pantau tingkat respons teknisi terhadap alarm setiap bulan — jika < 70% indikasi alarm fatigue. | Tampilkan skor probabilitas bersama setiap alarm; gunakan `alarm_count` sebagai filter kedua. Jika FAR lapangan > 50%, naikkan threshold ke 0.35 dan evaluasi ulang Recall. |
+| **Kualitas Sensor** | Sensor rusak atau nilai tidak valid (contoh: `vibration_mm_s` = 999 mm/s) menghasilkan prediksi tidak dapat dipercaya. | Pantau missing value, nilai anomali, dan sensor tidak aktif setiap minggu — jika > 5% baris anomali, lakukan kalibrasi. | Bangun mekanisme validasi data masuk otomatis sebelum diumpankan ke model; tetapkan SOP jika sensor mati atau anomali. |
+| **Keamanan Data** | Data sensor mengungkapkan kapasitas produksi dan kondisi aset — bersifat sensitif secara bisnis. | Pantau akses pengguna dan aktivitas penggunaan data secara berkala. | Batasi akses berdasarkan peran (teknisi: notifikasi per mesin; manajer: dashboard agregat); tetapkan kebijakan retensi data yang jelas. |
+| **Bias Data Historis** | Model mencerminkan kondisi masa lalu — mesin yang jarang muncul di data pelatihan mungkin kurang optimal diprediksi. | Evaluasi Recall dan FAR per mesin dan per lini (bukan hanya agregat) setiap bulan. | Tambahkan data historis yang lebih beragam saat re-training; pastikan tidak ada mesin yang konsisten luput dari deteksi. |
