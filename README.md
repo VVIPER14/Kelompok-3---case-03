@@ -66,8 +66,8 @@ KPI ini mengukur kemampuan model dalam mendeteksi mesin yang benar-benar akan me
 - **Numerator:** True Positive (TP) — jumlah mesin yang benar-benar akan downtime dan berhasil diprediksi oleh model.
 - **Denominator:** TP + FN — seluruh mesin yang sebenarnya akan mengalami downtime di periode test.
 - **Satuan:** Persentase (%)
-- **Baseline:** 0% (tidak ada sistem prediksi sebelumnya)
-- **Target:** Recall ≥ 80%
+- **Baseline:** 82.35% 
+- **Target:** Recall ≥ 82.35%
 
 ### b. False Alarm Rate (FAR)
 
@@ -77,7 +77,7 @@ KPI ini mengukur seberapa sering model memberikan alarm downtime padahal mesin s
 - **Numerator:** False Positive (FP) — jumlah mesin yang diprediksi downtime padahal kenyataannya tidak.
 - **Denominator:** FP + TN — seluruh mesin yang sebenarnya tidak mengalami downtime.
 - **Satuan:** Persentase (%)
-- **Baseline:** 0% (tidak ada sistem prediksi sebelumnya)
+- **Baseline:** 0% 
 - **Target:** FAR ≤ 30%
 
 ### c. Downtime Avoidance
